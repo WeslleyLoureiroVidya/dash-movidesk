@@ -56,6 +56,16 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
 .sec:first-child{margin-top:0}
 table.diag{width:100%;border-collapse:collapse;font-size:.85rem}
 table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+#lookup{padding:24px;max-width:1100px;margin:0 auto}
+.lkbox{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin-bottom:16px}
+.lkbox label{margin-bottom:12px}
+textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin-top:4px}
+.counts{display:flex;flex-wrap:wrap;gap:24px;margin:8px 0 12px}
+.counts b{font-size:1.6rem;display:block;line-height:1.1}
+.counts span{font-size:.8rem;color:var(--muted)}
+.row{padding:10px 0;border-top:1px solid var(--line);font-size:.92rem}
+.sol{margin-top:6px;padding:8px 12px;background:var(--bg);border-radius:6px;font-size:.88rem;white-space:pre-wrap}
+button.chip{cursor:pointer;background:var(--surface);color:var(--ink)}
 .hint{font-size:.8rem;color:var(--muted);padding-bottom:12px}
 </style>
 </head>
@@ -68,6 +78,7 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
   </div>
   <div class="spacer"></div>
   <span class="status" id="status">Aguardando configuração</span>
+  <button id="btnLookup" class="primary">Consultar cliente</button>
   <button id="btnTicket">Buscar ticket</button>
   <button id="btnDiag">Diagnóstico</button>
   <button id="btnDemo">Ver demonstração</button>
@@ -102,6 +113,19 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
   <div style="height:16px"></div>
 </details>
 
+<section id="lookup" hidden>
+  <div class="lkbox">
+    <label>Cole aqui o texto da conversa do chat
+      <textarea id="lkText" rows="5" placeholder="Cole a conversa. O dashboard tenta achar o nome ou e-mail do cliente."></textarea>
+    </label>
+    <label>Ou digite o nome, e-mail ou nº do ticket
+      <input type="text" id="lkQuery" placeholder="Ex.: Afonso Dias">
+    </label>
+    <button id="lkGo" class="primary">Analisar cliente</button>
+    <div id="lkChips" class="chips"></div>
+  </div>
+  <div id="lkOut"></div>
+</section>
 <main id="list"><div class="empty">Informe o token e clique em “Salvar e iniciar”.</div></main>
 
 <script>
@@ -257,7 +281,8 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
   }
 
   // ---------- render ----------
-  function minutesSince(iso){ return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); }
+  function utc(iso){ return new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(iso) ? iso : iso + "Z"); }
+  function minutesSince(iso){ return Math.max(0, Math.round((Date.now() - utc(iso).getTime()) / 60000)); }
   function fmtWait(m){
     if (m < 60) return m + " min";
     if (m < 1440) return Math.floor(m / 60) + " h " + (m % 60) + " min";
@@ -408,6 +433,131 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
       $("list").innerHTML = '<h2 class="sec">Erro ao consultar o ticket #' + esc(n) + ' (' + esc(e.message) + ')</h2><p class="meta">Isso é um erro de conexão ou de permissão, não prova que o ticket não existe.</p>';
       setStatus("Erro na consulta (" + e.message + ")", true);
     });
+  };
+
+
+  // ---------- consulta de cliente a partir da conversa colada ----------
+  $("btnLookup").onclick = function(){
+    var open = $("lookup").hidden;
+    $("lookup").hidden = !open; $("list").hidden = open;
+    $("btnLookup").textContent = open ? "Voltar à fila" : "Consultar cliente";
+  };
+  function extractCandidates(text){
+    var out = [], seenV = {};
+    function add(t, v){ if (!seenV[v]) { seenV[v] = 1; out.push({ type: t, v: v }); } }
+    (text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).forEach(function(e){ add("email", e); });
+    (text.match(/#\d{4,}/g) || []).forEach(function(n){ add("ticket", n.slice(1)); });
+    var re = /\b([A-ZÀ-Ý][a-zà-ÿ]{2,}(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ý][a-zà-ÿ]{2,}){1,3})\b/g, m;
+    var bad = /^(Bom Dia|Boa Tarde|Boa Noite|Suporte|Obrigad|Tudo Bem)/i;
+    while ((m = re.exec(text))) if (!bad.test(m[1])) add("name", m[1]);
+    return out.slice(0, 8);
+  }
+  function findPersons(q){
+    var s = q.replace(/'/g, "''");
+    var variants = q.indexOf("@") > 0 ? ["emails/any(e: e/email eq '" + s + "')"]
+      : ["businessName eq '" + s + "'", "startswith(businessName,'" + s + "')", "contains(businessName,'" + s + "')"];
+    var i = 0;
+    function next(){
+      if (i >= variants.length) return Promise.resolve([]);
+      return api("/persons", { "$select": "id,businessName", "$filter": variants[i++], "$top": "5" })
+        .then(function(r){ return r.length ? r : next(); }).catch(function(){ return next(); });
+    }
+    return next();
+  }
+  function personsByTicket(n){
+    return api("/tickets", { "$select": "id", "$filter": "id eq '" + n + "'", "$expand": "clients", "$top": "1" })
+      .then(function(r){ return ((r[0] && r[0].clients) || []).map(function(c){ return { id: c.id, businessName: c.businessName }; }); });
+  }
+  function stripHtml(h){ var d = new DOMParser().parseFromString(String(h || ""), "text/html"); return (d.body.textContent || "").replace(/\s+/g, " ").trim(); }
+  function top(map, n){ return Object.keys(map).sort(function(a, b){ return map[b] - map[a]; }).slice(0, n)
+    .map(function(k){ return '<span class="chip">' + esc(k) + ' · ' + map[k] + '</span>'; }).join(""); }
+
+  function runLookup(q){
+    q = (q || "").trim(); if (!q) return;
+    $("lkQuery").value = q;
+    var out = $("lkOut");
+    out.innerHTML = '<p class="loading">Procurando o cliente “' + esc(q) + '”… (a API limita as consultas, pode levar alguns segundos)</p>';
+    var p = /^#?\d{4,}$/.test(q) ? personsByTicket(q.replace("#", "")) : findPersons(q);
+    p.then(function(list){
+      if (!list.length) { out.innerHTML = '<p class="warn">Não encontrei cliente para “' + esc(q) + '”. Tente o nome exato como aparece no Movidesk, o e-mail ou o número do ticket.</p>'; return; }
+      if (list.length > 1) {
+        out.innerHTML = '<p>Mais de um cliente encontrado. Qual deles?</p><div class="chips" id="lkPick"></div>';
+        list.forEach(function(c){
+          var b = document.createElement("button"); b.className = "chip"; b.textContent = c.businessName;
+          b.onclick = function(){ analyzeClient(c); }; $("lkPick").appendChild(b);
+        });
+        return;
+      }
+      analyzeClient(list[0]);
+    }).catch(function(e){ out.innerHTML = '<p class="warn">Erro na consulta (' + esc(e.message) + ').</p>'; });
+  }
+
+  function analyzeClient(c){
+    var out = $("lkOut");
+    out.innerHTML = '<p class="loading">Carregando tickets de ' + esc(c.businessName) + '…</p>';
+    var since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 19) + ".00z";
+    var base = {
+      "$select": "id,subject,category,status,baseStatus,origin,createdDate,resolvedIn,serviceFirstLevel,ownerTeam",
+      "$filter": "clients/any(c: c/id eq '" + String(c.id).replace(/'/g, "''") + "') and createdDate ge " + since,
+      "$orderby": "createdDate desc", "$top": "100"
+    };
+    var withOwner = {}; Object.keys(base).forEach(function(k){ withOwner[k] = base[k]; }); withOwner["$expand"] = "owner";
+    api("/tickets", withOwner).catch(function(){ return api("/tickets", base); }).then(function(ts){
+      var d0 = new Date(); d0.setHours(0, 0, 0, 0);
+      var day = d0.getTime(), week = Date.now() - 7 * 864e5, mo = new Date(d0.getFullYear(), d0.getMonth(), 1).getTime();
+      var n = { day: 0, week: 0, mo: 0 }, cats = {}, svcs = {}, ags = {}, durs = [];
+      ts.forEach(function(t){
+        var ms = utc(t.createdDate).getTime();
+        if (ms >= day) n.day++; if (ms >= week) n.week++; if (ms >= mo) n.mo++;
+        var k = t.category || "Sem categoria"; cats[k] = (cats[k] || 0) + 1;
+        if (t.serviceFirstLevel) svcs[t.serviceFirstLevel] = (svcs[t.serviceFirstLevel] || 0) + 1;
+        var a = t.owner && t.owner.businessName; if (a) ags[a] = (ags[a] || 0) + 1;
+        if (t.resolvedIn) durs.push((utc(t.resolvedIn) - utc(t.createdDate)) / 60000);
+      });
+      var avg = durs.length ? fmtWait(Math.round(durs.reduce(function(x, y){ return x + y; }, 0) / durs.length)) : "–";
+      var html = '<div class="card"><div class="client">' + esc(c.businessName) + '</div><div class="counts">' +
+        [[n.day, "hoje"], [n.week, "últimos 7 dias"], [n.mo, "neste mês"], [ts.length, "últimos 90 dias"], [avg, "tempo médio até resolver"]]
+          .map(function(x){ return '<div><b>' + esc(x[0]) + '</b><span>' + x[1] + '</span></div>'; }).join("") + '</div>' +
+        '<div class="meta">Categorias</div><div class="chips">' + (top(cats, 6) || "–") + '</div>' +
+        '<div class="meta" style="margin-top:8px">Serviços</div><div class="chips">' + (top(svcs, 6) || "–") + '</div>' +
+        '<div class="meta" style="margin-top:8px">Analistas que atenderam</div><div class="chips">' + (top(ags, 6) || "–") + '</div></div>';
+      html += '<h2 class="sec">Últimos tickets</h2><div class="card">' + (ts.slice(0, 10).map(function(t){
+        var dur = t.resolvedIn ? fmtWait(Math.round((utc(t.resolvedIn) - utc(t.createdDate)) / 60000)) : "em aberto";
+        return '<div class="row"><b>#' + esc(t.id) + '</b> · ' + utc(t.createdDate).toLocaleDateString("pt-BR") + ' · ' + esc(t.subject) +
+          '<div class="meta">' + esc(t.category || "Sem categoria") + (t.serviceFirstLevel ? ' · ' + esc(t.serviceFirstLevel) : '') +
+          ' · ' + esc(t.status) + ' · ' + dur + (t.owner && t.owner.businessName ? ' · ' + esc(t.owner.businessName) : '') + '</div>' +
+          (t.baseStatus === "Resolved" || t.baseStatus === "Closed" ? '<div class="sol loading" id="sol-' + esc(t.id) + '">Aguardando o retorno final…</div>' : '') + '</div>';
+      }).join("") || '<p class="meta">Nenhum ticket nos últimos 90 dias.</p>') + '</div>';
+      out.innerHTML = html;
+      var chain = Promise.resolve();
+      ts.filter(function(t){ return t.baseStatus === "Resolved" || t.baseStatus === "Closed"; }).slice(0, 3).forEach(function(t){
+        chain = chain.then(function(){
+          return api("/tickets", { "$select": "id", "$filter": "id eq '" + t.id + "'", "$expand": "actions", "$top": "1" }).then(function(r){
+            var acts = ((r[0] && r[0].actions) || []).filter(function(a){ return Number(a.type) === 2; });
+            var last = acts[acts.length - 1], el = document.getElementById("sol-" + t.id); if (!el) return;
+            el.className = "sol";
+            el.textContent = last ? "Último retorno ao cliente: " + stripHtml(last.description).slice(0, 400) : "Sem retorno público registrado.";
+          }).catch(function(){ var el = document.getElementById("sol-" + t.id); if (el) el.textContent = "Não foi possível ler o retorno desse ticket."; });
+        });
+      });
+      ts.slice(3, 10).forEach(function(t){ var el = document.getElementById("sol-" + t.id); if (el) el.remove(); });
+    }).catch(function(e){ out.innerHTML = '<p class="warn">Erro ao buscar os tickets (' + esc(e.message) + ').</p>'; });
+  }
+
+  $("lkGo").onclick = function(){
+    if (!cfg.token) { setStatus("Informe o token primeiro", true); return; }
+    var text = $("lkText").value, cands = extractCandidates(text), q = $("lkQuery").value.trim();
+    var chips = $("lkChips"); chips.innerHTML = "";
+    cands.forEach(function(c){
+      var b = document.createElement("button"); b.className = "chip"; b.textContent = (c.type === "ticket" ? "#" : "") + c.v;
+      b.onclick = function(){ runLookup(c.v); }; chips.appendChild(b);
+    });
+    if (!q && cands.length) {
+      var pick = cands.filter(function(c){ return c.type === "email"; })[0] || cands.filter(function(c){ return c.type === "ticket"; })[0] || cands[0];
+      q = pick.v;
+    }
+    if (!q) { $("lkOut").innerHTML = '<p class="warn">Cole a conversa ou digite o nome do cliente.</p>'; return; }
+    runLookup(q);
   };
 
   // ---------- demonstração (dados fictícios, sem token) ----------
