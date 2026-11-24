@@ -68,6 +68,7 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
   </div>
   <div class="spacer"></div>
   <span class="status" id="status">Aguardando configuração</span>
+  <button id="btnTicket">Buscar ticket</button>
   <button id="btnDiag">Diagnóstico</button>
   <button id="btnDemo">Ver demonstração</button>
   <button id="btnSound">Ativar som</button>
@@ -382,6 +383,23 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
         '<div style="overflow-x:auto"><table class="diag"><tr><th>ID</th><th>Assunto</th><th>Status</th><th>Base</th><th>Origin</th><th>Grupo de chat</th><th>Criado</th></tr>' + rows + '</table></div>';
       setStatus("Diagnóstico carregado");
     }).catch(function(e){ setStatus("Falha no diagnóstico (" + e.message + ")", true); });
+  };
+
+  // ---------- busca direta por número de ticket (teste do chat em andamento) ----------
+  $("btnTicket").onclick = function(){
+    if (!cfg.token) { setStatus("Informe o token primeiro", true); return; }
+    var n = (window.prompt("Número do ticket do chat em andamento (ex.: 7166):") || "").trim();
+    if (!/^\d+$/.test(n)) return;
+    demo = false; setStatus("Buscando o ticket #" + n + "…");
+    api("/tickets", { "id": n }).then(function(t){
+      var keep = ["id","subject","status","baseStatus","origin","chatGroup","createdDate","lastUpdate","chatWaitingTime","chatTalkTime"];
+      var o = {}; keep.forEach(function(k){ if (t && t[k] !== undefined) o[k] = t[k]; });
+      $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ' encontrado pela API</h2><pre style="white-space:pre-wrap">' + esc(JSON.stringify(o, null, 2)) + '</pre>';
+      setStatus("Ticket #" + n + " encontrado");
+    }).catch(function(e){
+      $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ': a API não devolveu (' + esc(e.message) + ')</h2>';
+      setStatus("Ticket #" + n + " não encontrado (" + e.message + ")", true);
+    });
   };
 
   // ---------- demonstração (dados fictícios, sem token) ----------
