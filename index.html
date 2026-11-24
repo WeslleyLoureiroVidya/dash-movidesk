@@ -391,14 +391,22 @@ table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-al
     var n = (window.prompt("Número do ticket do chat em andamento (ex.: 7166):") || "").trim();
     if (!/^\d+$/.test(n)) return;
     demo = false; setStatus("Buscando o ticket #" + n + "…");
-    api("/tickets", { "id": n }).then(function(t){
-      var keep = ["id","subject","status","baseStatus","origin","chatGroup","createdDate","lastUpdate","chatWaitingTime","chatTalkTime"];
-      var o = {}; keep.forEach(function(k){ if (t && t[k] !== undefined) o[k] = t[k]; });
-      $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ' encontrado pela API</h2><pre style="white-space:pre-wrap">' + esc(JSON.stringify(o, null, 2)) + '</pre>';
+    api("/tickets", {
+      "$select": "id,subject,status,baseStatus,origin,chatGroup,createdDate,lastUpdate",
+      "$filter": "id eq '" + n + "'",
+      "$top": "1"
+    }).then(function(arr){
+      var t = Array.isArray(arr) ? arr[0] : arr;
+      if (!t) {
+        $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ': a API respondeu, mas não devolveu esse ticket</h2><p class="meta">A consulta funcionou e voltou vazia. Isso indica que a API não enxerga esse ticket (por exemplo, enquanto o chat está em andamento).</p>';
+        setStatus("Ticket #" + n + ": a API não devolveu");
+        return;
+      }
+      $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ' encontrado pela API</h2><pre style="white-space:pre-wrap">' + esc(JSON.stringify(t, null, 2)) + '</pre>';
       setStatus("Ticket #" + n + " encontrado");
     }).catch(function(e){
-      $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ': a API não devolveu (' + esc(e.message) + ')</h2>';
-      setStatus("Ticket #" + n + " não encontrado (" + e.message + ")", true);
+      $("list").innerHTML = '<h2 class="sec">Erro ao consultar o ticket #' + esc(n) + ' (' + esc(e.message) + ')</h2><p class="meta">Isso é um erro de conexão ou de permissão, não prova que o ticket não existe.</p>';
+      setStatus("Erro na consulta (" + e.message + ")", true);
     });
   };
 
