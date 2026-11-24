@@ -52,6 +52,10 @@ details.cfg summary{cursor:pointer;padding:10px 0;color:var(--muted);font-size:.
 .cfg .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:8px 0 16px}
 label{display:block;font-size:.85rem;color:var(--muted)}
 input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin-top:4px}
+.sec{font-size:1.05rem;margin:24px 0 12px;font-weight:650}
+.sec:first-child{margin-top:0}
+table.diag{width:100%;border-collapse:collapse;font-size:.85rem}
+table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-align:left}
 .hint{font-size:.8rem;color:var(--muted);padding-bottom:12px}
 </style>
 </head>
@@ -64,6 +68,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
   </div>
   <div class="spacer"></div>
   <span class="status" id="status">Aguardando configuração</span>
+  <button id="btnDiag">Diagnóstico</button>
   <button id="btnDemo">Ver demonstração</button>
   <button id="btnSound">Ativar som</button>
   <button id="btnRefresh" class="primary">Atualizar agora</button>
@@ -78,7 +83,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
     <label>Atualizar a cada (minutos)
       <input type="number" id="cInterval" min="1" max="30" value="2">
     </label>
-    <label>Quais chats entram na fila
+    <label style="display:none">Quais chats entram na fila
       <select id="cScope">
         <option value="new">Somente aguardando (Novo)</option>
         <option value="open">Aguardando + em atendimento</option>
@@ -188,9 +193,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
   }
 
   function fetchQueue(){
-    var f = cfg.scope === "open"
-      ? "(baseStatus eq 'New' or baseStatus eq 'InAttendance')"
-      : "baseStatus eq 'New'";
+    var f = "(baseStatus eq 'New' or baseStatus eq 'InAttendance')";
     var hours = cfg.maxAge || 24;
     var since = new Date(Date.now() - hours * 3600000).toISOString().slice(0, 19) + ".00z";
     return api("/tickets", {
@@ -201,8 +204,11 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
       "$top": "100"
     }).then(function(all){
       // origin 5 = Chat (online). O filtro é feito aqui para evitar erros de consulta na API.
-      var chats = all.filter(function(t){ return Number(t.origin) === 5; });
-      chats.sort(function(a, b){ return new Date(a.createdDate) - new Date(b.createdDate); });
+      var chats = all.filter(function(t){ return Number(t.origin) === 5 || !!t.chatGroup; });
+      chats.sort(function(a, b){
+        var wa = a.baseStatus === "InAttendance" ? 1 : 0, wb = b.baseStatus === "InAttendance" ? 1 : 0;
+        return wa - wb || new Date(a.createdDate) - new Date(b.createdDate);
+      });
       lastInfo = all.length + " tickets recentes, " + chats.length + " de chat";
       return chats;
     });
@@ -264,16 +270,17 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
 
   function render(){
     var list = $("list");
-    $("sCount").textContent = queue.length;
-    var maxW = queue.reduce(function(m, t){ return Math.max(m, minutesSince(t.createdDate)); }, 0);
-    $("sWait").textContent = queue.length ? fmtWait(maxW) : "–";
-    if (!queue.length) { list.innerHTML = '<div class="empty">Nenhum chat na fila no momento.</div>'; return; }
-    list.innerHTML = queue.map(function(t){
+    var waiting = queue.filter(function(t){ return t.baseStatus !== "InAttendance"; });
+    var active = queue.filter(function(t){ return t.baseStatus === "InAttendance"; });
+    $("sCount").textContent = waiting.length;
+    var maxW = waiting.reduce(function(m, t){ return Math.max(m, minutesSince(t.createdDate)); }, 0);
+    $("sWait").textContent = waiting.length ? fmtWait(maxW) : "–";
+    function cardHtml(t){
       var c = clientOf(t), m = minutesSince(t.createdDate);
       var a = t._analysis;
       var cls = "card" + (newIds[t.id] ? " new" : "") + (a && (a.sameCat >= 2 || a.similar.length >= 2) ? " recurrent" : "");
       var html = '<div class="' + cls + '"><div class="top"><span class="client">' + esc(c ? c.name : "Sem cliente vinculado") +
-        '</span><span class="meta">#' + esc(t.id) + '</span><span class="wait' + (m >= 15 ? " long" : "") + '">' + fmtWait(m) + ' esperando</span></div>' +
+        '</span><span class="meta">#' + esc(t.id) + '</span><span class="wait' + (m >= 15 && t.baseStatus !== "InAttendance" ? " long" : "") + '">' + fmtWait(m) + (t.baseStatus === "InAttendance" ? ' em atendimento' : ' esperando') + '</span></div>' +
         '<p class="subject">' + esc(t.subject) + '</p>' +
         '<div class="meta">' + (t.chatGroup ? esc(t.chatGroup) + ' · ' : '') + esc(t.category || "Sem categoria") + ' · ' + esc(t.status || "") + (t.urgency ? ' · urgência ' + esc(t.urgency) : "") + '</div>';
       html += '<div class="insight">';
@@ -288,7 +295,13 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
         if (!a.total) html += '<p class="meta">Primeiro contato do mês.</p>';
       }
       return html + '</div></div>';
-    }).join("");
+    }
+    function section(title, arr, emptyMsg){
+      return '<h2 class="sec">' + title + ' (' + arr.length + ')</h2>' +
+        (arr.length ? arr.map(cardHtml).join("") : '<div class="empty">' + emptyMsg + '</div>');
+    }
+    list.innerHTML = section("Aguardando atendimento", waiting, "Nenhum chat aguardando.") +
+      section("Em atendimento", active, "Nenhum chat em atendimento.");
   }
 
   // ---------- ciclo ----------
@@ -301,7 +314,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
       var fresh = [];
       tickets.forEach(function(t){
         if (prev[t.id] && prev[t.id]._analysis) { t._analysis = prev[t.id]._analysis; }
-        if (seen && !seen[t.id]) { newIds[t.id] = 1; fresh.push(t); }
+        if (seen && !seen[t.id] && t.baseStatus !== "InAttendance") { newIds[t.id] = 1; fresh.push(t); }
       });
       queue = tickets;
       seen = seen || {};
@@ -349,6 +362,27 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
     timer = setInterval(refresh, (cfg.interval || 2) * 60000);
   }
   setInterval(function(){ if (queue.length) render(); }, 30000); // atualiza o tempo de espera
+
+  // ---------- diagnóstico: mostra como o Movidesk devolve os tickets recentes ----------
+  $("btnDiag").onclick = function(){
+    if (!cfg.token) { setStatus("Informe o token primeiro", true); return; }
+    demo = false; setStatus("Consultando diagnóstico…");
+    var since = new Date(Date.now() - 24 * 3600000).toISOString().slice(0, 19) + ".00z";
+    api("/tickets", {
+      "$select": "id,subject,status,baseStatus,origin,chatGroup,createdDate",
+      "$filter": "createdDate ge " + since,
+      "$orderby": "createdDate desc",
+      "$top": "40"
+    }).then(function(all){
+      var rows = all.map(function(t){
+        return "<tr><td>" + esc(t.id) + "</td><td>" + esc(t.subject) + "</td><td>" + esc(t.status) + "</td><td>" + esc(t.baseStatus) +
+          "</td><td>" + esc(t.origin) + "</td><td>" + esc(t.chatGroup) + "</td><td>" + esc(t.createdDate) + "</td></tr>";
+      }).join("");
+      $("list").innerHTML = '<h2 class="sec">Diagnóstico: tickets das últimas 24 h (' + all.length + ')</h2>' +
+        '<div style="overflow-x:auto"><table class="diag"><tr><th>ID</th><th>Assunto</th><th>Status</th><th>Base</th><th>Origin</th><th>Grupo de chat</th><th>Criado</th></tr>' + rows + '</table></div>';
+      setStatus("Diagnóstico carregado");
+    }).catch(function(e){ setStatus("Falha no diagnóstico (" + e.message + ")", true); });
+  };
 
   // ---------- demonstração (dados fictícios, sem token) ----------
   var demo = false;
