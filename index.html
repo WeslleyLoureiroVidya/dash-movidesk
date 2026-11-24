@@ -57,7 +57,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
 </head>
 <body>
 <header>
-  <h1>Fila de atendimento</h1>
+  <h1>Fila de chats</h1>
   <div class="stats">
     <div class="stat"><b id="sCount">–</b><span>na fila</span></div>
     <div class="stat"><b id="sWait">–</b><span>maior espera</span></div>
@@ -78,11 +78,14 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
     <label>Atualizar a cada (minutos)
       <input type="number" id="cInterval" min="1" max="30" value="2">
     </label>
-    <label>Quais tickets entram na fila
+    <label>Quais chats entram na fila
       <select id="cScope">
-        <option value="new">Somente novos</option>
-        <option value="open">Novos + em atendimento</option>
+        <option value="new">Somente aguardando (Novo)</option>
+        <option value="open">Aguardando + em atendimento</option>
       </select>
+    </label>
+    <label>Ignorar chats mais antigos que (horas)
+      <input type="number" id="cMaxAge" min="1" max="720" value="24">
     </label>
     <label>URL base da API
       <input type="text" id="cBase" value="https://api.movidesk.com/public/v1">
@@ -128,6 +131,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
   $("cToken").value = cfg.token || "";
   $("cInterval").value = cfg.interval || 2;
   $("cScope").value = cfg.scope || "new";
+  $("cMaxAge").value = cfg.maxAge || 24;
   $("cBase").value = cfg.base || "https://api.movidesk.com/public/v1";
   try {
     var s = JSON.parse(localStorage.getItem(LS + "_seen") || "null");
@@ -138,6 +142,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
     cfg.token = $("cToken").value.trim();
     cfg.interval = Math.max(1, parseInt($("cInterval").value, 10) || 2);
     cfg.scope = $("cScope").value;
+    cfg.maxAge = Math.max(1, parseInt($("cMaxAge").value, 10) || 24);
     cfg.base = $("cBase").value.trim().replace(/\/$/, "");
     save();
     $("cfg").open = false;
@@ -186,14 +191,23 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
     var f = cfg.scope === "open"
       ? "(baseStatus eq 'New' or baseStatus eq 'InAttendance')"
       : "baseStatus eq 'New'";
+    var hours = cfg.maxAge || 24;
+    var since = new Date(Date.now() - hours * 3600000).toISOString().slice(0, 19) + ".00z";
     return api("/tickets", {
-      "$select": "id,subject,category,urgency,status,baseStatus,createdDate",
-      "$filter": f,
+      "$select": "id,subject,category,urgency,status,baseStatus,createdDate,origin,chatGroup",
+      "$filter": "(" + f + ") and createdDate ge " + since,
       "$expand": "clients",
-      "$orderby": "createdDate asc",
-      "$top": "50"
+      "$orderby": "createdDate desc",
+      "$top": "100"
+    }).then(function(all){
+      // origin 5 = Chat (online). O filtro é feito aqui para evitar erros de consulta na API.
+      var chats = all.filter(function(t){ return Number(t.origin) === 5; });
+      chats.sort(function(a, b){ return new Date(a.createdDate) - new Date(b.createdDate); });
+      lastInfo = all.length + " tickets recentes, " + chats.length + " de chat";
+      return chats;
     });
   }
+  var lastInfo = "";
 
   function monthStart(){
     var d = new Date();
@@ -237,7 +251,11 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
 
   // ---------- render ----------
   function minutesSince(iso){ return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); }
-  function fmtWait(m){ return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min"; }
+  function fmtWait(m){
+    if (m < 60) return m + " min";
+    if (m < 1440) return Math.floor(m / 60) + " h " + (m % 60) + " min";
+    return Math.floor(m / 1440) + " d " + Math.floor((m % 1440) / 60) + " h";
+  }
 
   function clientOf(t){
     var c = (t.clients || [])[0];
@@ -249,7 +267,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
     $("sCount").textContent = queue.length;
     var maxW = queue.reduce(function(m, t){ return Math.max(m, minutesSince(t.createdDate)); }, 0);
     $("sWait").textContent = queue.length ? fmtWait(maxW) : "–";
-    if (!queue.length) { list.innerHTML = '<div class="empty">Fila vazia. Nenhum cliente aguardando.</div>'; return; }
+    if (!queue.length) { list.innerHTML = '<div class="empty">Nenhum chat na fila no momento.</div>'; return; }
     list.innerHTML = queue.map(function(t){
       var c = clientOf(t), m = minutesSince(t.createdDate);
       var a = t._analysis;
@@ -257,7 +275,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
       var html = '<div class="' + cls + '"><div class="top"><span class="client">' + esc(c ? c.name : "Sem cliente vinculado") +
         '</span><span class="meta">#' + esc(t.id) + '</span><span class="wait' + (m >= 15 ? " long" : "") + '">' + fmtWait(m) + ' esperando</span></div>' +
         '<p class="subject">' + esc(t.subject) + '</p>' +
-        '<div class="meta">' + esc(t.category || "Sem categoria") + ' · ' + esc(t.status || "") + (t.urgency ? ' · urgência ' + esc(t.urgency) : "") + '</div>';
+        '<div class="meta">' + (t.chatGroup ? esc(t.chatGroup) + ' · ' : '') + esc(t.category || "Sem categoria") + ' · ' + esc(t.status || "") + (t.urgency ? ' · urgência ' + esc(t.urgency) : "") + '</div>';
       html += '<div class="insight">';
       if (!c) html += '<p class="loading">Ticket sem cliente vinculado, não há histórico.</p>';
       else if (t._error) html += '<p class="warn">Não foi possível carregar o histórico (' + esc(t._error) + ').</p>';
@@ -290,7 +308,7 @@ input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
       tickets.forEach(function(t){ seen[t.id] = 1; });
       try { localStorage.setItem(LS + "_seen", JSON.stringify(Object.keys(seen).slice(-500))); } catch(e){}
       render();
-      setStatus("Atualizado às " + new Date().toLocaleTimeString("pt-BR"));
+      setStatus("Atualizado às " + new Date().toLocaleTimeString("pt-BR") + (lastInfo ? " · " + lastInfo : ""));
       if (fresh.length) notify(fresh);
       return enrich();
     }).catch(function(e){
