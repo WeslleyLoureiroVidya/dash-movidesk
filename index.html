@@ -3,603 +3,185 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fila de atendimento</title>
+<title>Assistente de chat</title>
 <style>
-:root{
-  --bg:#f3f5f8; --surface:#ffffff; --ink:#14213d; --muted:#5d6b82; --line:#d9dfe8;
-  --accent:#1f4fd8; --alert:#e8890c; --alert-bg:#fff4e0; --ok:#1b7f5a; --bad:#c0392b;
-}
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#0e1522; --surface:#172033; --ink:#e8edf6; --muted:#98a5bd; --line:#2a3650;
-    --accent:#6d93ff; --alert:#ffb04a; --alert-bg:#3a2a10; --ok:#4cc79a; --bad:#ff7b6b; }
-}
-*{box-sizing:border-box}
-html,body{margin:0}
+:root{--bg:#f3f5f8;--surface:#fff;--ink:#14213d;--muted:#5d6b82;--line:#d9dfe8;--accent:#1f4fd8;--bad:#c0392b;--ok:#1b7f5a}
+@media (prefers-color-scheme: dark){:root{--bg:#0e1522;--surface:#172033;--ink:#e8edf6;--muted:#98a5bd;--line:#2a3650;--accent:#6d93ff;--bad:#ff7b6b;--ok:#4cc79a}}
+*{box-sizing:border-box}html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:16px 24px;background:var(--surface);border-bottom:1px solid var(--line)}
-h1{font-size:1.25rem;margin:0;font-weight:650}
-.stats{display:flex;gap:24px;margin-left:8px}
-.stat b{font-size:1.5rem;display:block;line-height:1.1}
-.stat span{font-size:.8rem;color:var(--muted)}
-.spacer{flex:1}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--line)}
+h1{font-size:1.2rem;margin:0}.sp{flex:1}.status{font-size:.85rem;color:var(--muted)}.status.err{color:var(--bad)}
+main{max-width:900px;margin:0 auto;padding:24px}
+.box,.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin-bottom:16px}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:12px}
+input,textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin-top:4px}
 button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:6px}
-button:hover{border-color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.status{font-size:.85rem;color:var(--muted)}
-.status.err{color:var(--bad)}
-main{padding:24px;max-width:1100px;margin:0 auto}
-.empty{padding:48px 16px;text-align:center;color:var(--muted)}
-.card{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:8px;padding:16px 20px;margin-bottom:14px}
-.card.new{border-left-color:var(--alert);background:var(--alert-bg);animation:pulse 1.2s ease-out 3}
-.card.recurrent{border-left-color:var(--bad)}
-@keyframes pulse{0%{box-shadow:0 0 0 0 var(--alert)}100%{box-shadow:0 0 0 14px transparent}}
-@media (prefers-reduced-motion: reduce){.card.new{animation:none}}
-.top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}
-.client{font-size:1.1rem;font-weight:650}
-.wait{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted);font-size:.9rem}
-.wait.long{color:var(--bad);font-weight:650}
-.subject{margin:6px 0 2px}
-.meta{font-size:.85rem;color:var(--muted)}
-.insight{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.95rem}
-.insight p{margin:0 0 6px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.chip{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
-.warn{color:var(--bad);font-weight:600}
-.loading{color:var(--muted);font-style:italic}
-details.cfg{background:var(--surface);border-bottom:1px solid var(--line);padding:0 24px}
-details.cfg summary{cursor:pointer;padding:10px 0;color:var(--muted);font-size:.9rem}
-.cfg .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:8px 0 16px}
-label{display:block;font-size:.85rem;color:var(--muted)}
-input,select{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin-top:4px}
-.sec{font-size:1.05rem;margin:24px 0 12px;font-weight:650}
-.sec:first-child{margin-top:0}
-table.diag{width:100%;border-collapse:collapse;font-size:.85rem}
-table.diag th,table.diag td{border:1px solid var(--line);padding:4px 8px;text-align:left}
-#lookup{padding:24px;max-width:1100px;margin:0 auto}
-.lkbox{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin-bottom:16px}
-.lkbox label{margin-bottom:12px}
-textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin-top:4px}
-.counts{display:flex;flex-wrap:wrap;gap:24px;margin:8px 0 12px}
-.counts b{font-size:1.6rem;display:block;line-height:1.1}
-.counts span{font-size:.8rem;color:var(--muted)}
-.row{padding:10px 0;border-top:1px solid var(--line);font-size:.92rem}
-.sol{margin-top:6px;padding:8px 12px;background:var(--bg);border-radius:6px;font-size:.88rem;white-space:pre-wrap}
-button.chip{cursor:pointer;background:var(--surface);color:var(--ink)}
-.hint{font-size:.8rem;color:var(--muted);padding-bottom:12px}
+button:focus-visible,input:focus-visible,textarea:focus-visible,#drop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#drop{border:2px dashed var(--line);border-radius:8px;padding:20px;text-align:center;color:var(--muted);cursor:pointer;margin-bottom:12px}
+#prev{max-width:100%;max-height:260px;margin-top:10px;border-radius:6px}
+h2{font-size:1.05rem;margin:0 0 8px}.meta{font-size:.85rem;color:var(--muted)}
+.warn{color:var(--bad);font-weight:600}.yes{color:var(--bad);font-weight:650}.no{color:var(--ok);font-weight:650}
+.loading{color:var(--muted);font-style:italic}ol{margin:6px 0 12px;padding-left:22px}
+.tag{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:1px 10px;margin-left:6px}
 </style>
 </head>
 <body>
-<header>
-  <h1>Fila de chats</h1>
-  <div class="stats">
-    <div class="stat"><b id="sCount">–</b><span>na fila</span></div>
-    <div class="stat"><b id="sWait">–</b><span>maior espera</span></div>
-  </div>
-  <div class="spacer"></div>
-  <span class="status" id="status">Aguardando configuração</span>
-  <button id="btnLookup" class="primary">Consultar cliente</button>
-  <button id="btnTicket">Buscar ticket</button>
-  <button id="btnDiag">Diagnóstico</button>
-  <button id="btnDemo">Ver demonstração</button>
-  <button id="btnSound">Ativar som</button>
-  <button id="btnRefresh" class="primary">Atualizar agora</button>
-</header>
-
-<details class="cfg" id="cfg" open>
-  <summary>Configurações</summary>
-  <div class="grid">
-    <label>Token da API do Movidesk
-      <input type="password" id="cToken" autocomplete="off" placeholder="Cole seu token">
-    </label>
-    <label>Atualizar a cada (minutos)
-      <input type="number" id="cInterval" min="1" max="30" value="2">
-    </label>
-    <label style="display:none">Quais chats entram na fila
-      <select id="cScope">
-        <option value="new">Somente aguardando (Novo)</option>
-        <option value="open">Aguardando + em atendimento</option>
-      </select>
-    </label>
-    <label>Ignorar chats mais antigos que (horas)
-      <input type="number" id="cMaxAge" min="1" max="720" value="24">
-    </label>
-    <label>URL base da API
-      <input type="text" id="cBase" value="https://api.movidesk.com/public/v1">
-    </label>
-  </div>
-  <div class="hint">O token fica salvo apenas neste navegador (localStorage) e nunca vai para o repositório. Se um dia usar um proxy, troque a URL base por a do proxy.</div>
-  <button id="btnSave" class="primary">Salvar e iniciar</button>
-  <div style="height:16px"></div>
-</details>
-
-<section id="lookup" hidden>
-  <div class="lkbox">
-    <label>Cole aqui o texto da conversa do chat
-      <textarea id="lkText" rows="5" placeholder="Cole a conversa. O dashboard tenta achar o nome ou e-mail do cliente."></textarea>
-    </label>
-    <label>Ou digite o nome, e-mail ou nº do ticket
-      <input type="text" id="lkQuery" placeholder="Ex.: Afonso Dias">
-    </label>
-    <button id="lkGo" class="primary">Analisar cliente</button>
-    <div id="lkChips" class="chips"></div>
-  </div>
-  <div id="lkOut"></div>
+<header><h1>Assistente de chat</h1><span class="sp"></span><span class="status" id="status"></span><button id="btnToken" hidden>Trocar token</button></header>
+<main>
+<section id="gate" class="box">
+  <label>Token da API do Movidesk <input type="password" id="token" autocomplete="off" placeholder="Cole seu token"></label>
+  <button id="enter" class="primary">Entrar</button>
+  <p class="meta">O token fica salvo apenas neste navegador.</p>
 </section>
-<main id="list"><div class="empty">Informe o token e clique em “Salvar e iniciar”.</div></main>
-
+<section id="app" hidden>
+  <div id="noai" class="card warn" hidden>A IA ainda não está configurada: preencha WORKER_URL no início do script do index.html (veja as instruções do worker.js).</div>
+  <div class="box">
+    <div id="drop" tabindex="0">Cole o print do chat aqui (Ctrl + V) ou clique para escolher uma imagem<input type="file" id="file" accept="image/*" hidden></div>
+    <img id="prev" alt="Print do chat" hidden>
+    <label>Texto copiado do chat <textarea id="txt" rows="7" placeholder="Cole aqui a conversa"></textarea></label>
+    <label>Nome do cliente (opcional, se não aparecer no print ou no texto) <input id="cli"></label>
+    <button id="go" class="primary">Analisar</button>
+  </div>
+  <div id="out"></div>
+</section>
+</main>
 <script>
 (function(){
-  var LS = "movidesk_dash_v1";
-  var cfg = load();
-  var timer = null, soundOn = false, audio = null;
-  var seen = null;            // ids de tickets já vistos (null = primeira carga)
-  var newIds = {};            // ids destacados como novos
-  var queue = [];             // fila atual
-  var histCache = {};         // clientId -> {t, tickets}
-  var HIST_TTL = 15 * 60 * 1000;
-  var lastCall = 0, GAP = 6200; // API do Movidesk limita ~10 requisições/min
+  var WORKER_URL = "https://assistente-chat.weslley-0f1.workers.dev"; // endereço do Worker, ex.: https://assistente.seu-usuario.workers.dev
+  var LS = "movidesk_assist_v1", $ = function(i){ return document.getElementById(i); };
+  var token = ""; try { token = localStorage.getItem(LS) || ""; } catch(e){}
+  var img = null, lastCall = 0, GAP = 6200;
 
-  var $ = function(id){ return document.getElementById(id); };
-
-  function load(){
-    try { return JSON.parse(localStorage.getItem(LS)) || {}; } catch(e){ return {}; }
-  }
-  function save(){
-    try { localStorage.setItem(LS, JSON.stringify(cfg)); } catch(e){}
-  }
-  function esc(s){
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
-  function setStatus(msg, err){
-    var el = $("status"); el.textContent = msg; el.className = "status" + (err ? " err" : "");
-  }
-
-  // ---------- configuração ----------
-  $("cToken").value = cfg.token || "";
-  $("cInterval").value = cfg.interval || 2;
-  $("cScope").value = cfg.scope || "new";
-  $("cMaxAge").value = cfg.maxAge || 24;
-  $("cBase").value = cfg.base || "https://api.movidesk.com/public/v1";
-  try {
-    var s = JSON.parse(localStorage.getItem(LS + "_seen") || "null");
-    if (s) { seen = {}; s.forEach(function(i){ seen[i] = 1; }); }
-  } catch(e){}
-
-  $("btnSave").onclick = function(){
-    cfg.token = $("cToken").value.trim();
-    cfg.interval = Math.max(1, parseInt($("cInterval").value, 10) || 2);
-    cfg.scope = $("cScope").value;
-    cfg.maxAge = Math.max(1, parseInt($("cMaxAge").value, 10) || 24);
-    cfg.base = $("cBase").value.trim().replace(/\/$/, "");
-    save();
-    $("cfg").open = false;
-    start();
-  };
-  $("btnRefresh").onclick = function(){ refresh(); };
-  $("btnSound").onclick = function(){
-    soundOn = !soundOn;
-    $("btnSound").textContent = soundOn ? "Som ativado" : "Ativar som";
-    if (soundOn) {
-      try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch(e){}
-      beep();
-      if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-    }
-  };
-
-  // ---------- som ----------
-  function beep(){
-    if (!audio) return;
-    [880, 1100, 880].forEach(function(f, i){
-      var o = audio.createOscillator(), g = audio.createGain();
-      o.type = "square"; o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, audio.currentTime + i * 0.28);
-      g.gain.exponentialRampToValueAtTime(0.35, audio.currentTime + i * 0.28 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + i * 0.28 + 0.24);
-      o.connect(g); g.connect(audio.destination);
-      o.start(audio.currentTime + i * 0.28); o.stop(audio.currentTime + i * 0.28 + 0.26);
-    });
-  }
-
-  // ---------- API ----------
-  function api(path, params){
-    var wait = Math.max(0, lastCall + GAP - Date.now());
-    lastCall = Date.now() + wait;
-    return new Promise(function(res){ setTimeout(res, wait); }).then(function(){
-      var qs = ["token=" + encodeURIComponent(cfg.token)];
-      Object.keys(params).forEach(function(k){ qs.push(k + "=" + encodeURIComponent(params[k])); });
-      return fetch(cfg.base + path + "?" + qs.join("&"));
-    }).then(function(r){
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    });
-  }
-
-  function fetchQueue(){
-    var f = "(baseStatus eq 'New' or baseStatus eq 'InAttendance')";
-    var hours = cfg.maxAge || 24;
-    var since = new Date(Date.now() - hours * 3600000).toISOString().slice(0, 19) + ".00z";
-    return api("/tickets", {
-      "$select": "id,subject,category,urgency,status,baseStatus,createdDate,origin,chatGroup",
-      "$filter": "(" + f + ") and createdDate ge " + since,
-      "$expand": "clients",
-      "$orderby": "createdDate desc",
-      "$top": "100"
-    }).then(function(all){
-      // origin 5 = Chat (online). O filtro é feito aqui para evitar erros de consulta na API.
-      var chats = all.filter(function(t){ return Number(t.origin) === 5 || !!t.chatGroup; });
-      chats.sort(function(a, b){
-        var wa = a.baseStatus === "InAttendance" ? 1 : 0, wb = b.baseStatus === "InAttendance" ? 1 : 0;
-        return wa - wb || new Date(a.createdDate) - new Date(b.createdDate);
-      });
-      lastInfo = all.length + " tickets recentes, " + chats.length + " de chat";
-      return chats;
-    });
-  }
-  var lastInfo = "";
-
-  function monthStart(){
-    var d = new Date();
-    return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-01T00:00:00.00z";
-  }
-
-  function fetchHistory(clientId){
-    var c = histCache[clientId];
-    if (c && Date.now() - c.t < HIST_TTL) return Promise.resolve(c.tickets);
-    return api("/tickets", {
-      "$select": "id,subject,category,createdDate",
-      "$filter": "clients/any(c: c/id eq '" + clientId.replace(/'/g, "''") + "') and createdDate ge " + monthStart(),
-      "$orderby": "createdDate desc",
-      "$top": "100"
-    }).then(function(t){
-      histCache[clientId] = { t: Date.now(), tickets: t };
-      return t;
-    });
-  }
-
-  // ---------- análise ----------
-  var STOP = ["para","com","que","uma","não","nao","por","dos","das","sobre","erro","problema","cliente","favor","preciso","gostaria","ajuda","duvida","dúvida"];
-  function words(s){
-    return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .split(/[^a-z0-9]+/).filter(function(w){ return w.length > 3 && STOP.indexOf(w) < 0; });
-  }
-  function analyze(ticket, hist){
-    var others = hist.filter(function(h){ return String(h.id) !== String(ticket.id); });
-    var cats = {};
-    others.forEach(function(h){ var c = h.category || "Sem categoria"; cats[c] = (cats[c] || 0) + 1; });
-    var topCats = Object.keys(cats).sort(function(a, b){ return cats[b] - cats[a]; }).slice(0, 4)
-      .map(function(c){ return { name: c, n: cats[c] }; });
-    var sameCat = ticket.category ? (cats[ticket.category] || 0) : 0;
-    var w = words(ticket.subject);
-    var similar = others.filter(function(h){
-      var hw = words(h.subject);
-      return w.filter(function(x){ return hw.indexOf(x) >= 0; }).length >= 2;
-    });
-    return { total: others.length, topCats: topCats, sameCat: sameCat, similar: similar };
-  }
-
-  // ---------- render ----------
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function setStatus(m, err){ var e = $("status"); e.textContent = m; e.className = "status" + (err ? " err" : ""); }
   function utc(iso){ return new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(iso) ? iso : iso + "Z"); }
-  function minutesSince(iso){ return Math.max(0, Math.round((Date.now() - utc(iso).getTime()) / 60000)); }
-  function fmtWait(m){
-    if (m < 60) return m + " min";
-    if (m < 1440) return Math.floor(m / 60) + " h " + (m % 60) + " min";
-    return Math.floor(m / 1440) + " d " + Math.floor((m % 1440) / 60) + " h";
+  function show(){ var ok = !!token; $("gate").hidden = ok; $("app").hidden = !ok; $("btnToken").hidden = !ok; $("noai").hidden = !!WORKER_URL; }
+  $("enter").onclick = function(){ token = $("token").value.trim(); if (!token) return; try { localStorage.setItem(LS, token); } catch(e){} show(); };
+  $("btnToken").onclick = function(){ token = ""; try { localStorage.removeItem(LS); } catch(e){} $("token").value = ""; show(); };
+
+  // ---- print: colar (Ctrl+V) ou escolher arquivo; reduz o tamanho antes de enviar ----
+  function loadImage(file){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var im = new Image();
+      im.onload = function(){
+        var sc = Math.min(1, 1600 / im.width), c = document.createElement("canvas");
+        c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        var url = c.toDataURL("image/jpeg", 0.85);
+        img = { media_type: "image/jpeg", data: url.split(",")[1] };
+        $("prev").src = url; $("prev").hidden = false;
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
   }
+  $("drop").onclick = function(){ $("file").click(); };
+  $("file").onchange = function(){ if (this.files[0]) loadImage(this.files[0]); };
+  document.addEventListener("paste", function(e){
+    var it = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < it.length; i++) if (it[i].type.indexOf("image") === 0) { loadImage(it[i].getAsFile()); e.preventDefault(); break; }
+  });
 
-  function clientOf(t){
-    var c = (t.clients || [])[0];
-    return c ? { id: c.id, name: c.businessName || "Cliente sem nome" } : null;
+  // ---- chamadas ----
+  function api(path, params){
+    var wait = Math.max(0, lastCall + GAP - Date.now()); lastCall = Date.now() + wait;
+    return new Promise(function(r){ setTimeout(r, wait); }).then(function(){
+      var qs = ["token=" + encodeURIComponent(token)];
+      Object.keys(params).forEach(function(k){ qs.push(k + "=" + encodeURIComponent(params[k])); });
+      return fetch("https://api.movidesk.com/public/v1" + path + "?" + qs.join("&"));
+    }).then(function(r){ if (!r.ok) throw new Error("Movidesk HTTP " + r.status); return r.json(); });
   }
-
-  function render(){
-    var list = $("list");
-    var waiting = queue.filter(function(t){ return t.baseStatus !== "InAttendance"; });
-    var active = queue.filter(function(t){ return t.baseStatus === "InAttendance"; });
-    $("sCount").textContent = waiting.length;
-    var maxW = waiting.reduce(function(m, t){ return Math.max(m, minutesSince(t.createdDate)); }, 0);
-    $("sWait").textContent = waiting.length ? fmtWait(maxW) : "–";
-    function cardHtml(t){
-      var c = clientOf(t), m = minutesSince(t.createdDate);
-      var a = t._analysis;
-      var cls = "card" + (newIds[t.id] ? " new" : "") + (a && (a.sameCat >= 2 || a.similar.length >= 2) ? " recurrent" : "");
-      var html = '<div class="' + cls + '"><div class="top"><span class="client">' + esc(c ? c.name : "Sem cliente vinculado") +
-        '</span><span class="meta">#' + esc(t.id) + '</span><span class="wait' + (m >= 15 && t.baseStatus !== "InAttendance" ? " long" : "") + '">' + fmtWait(m) + (t.baseStatus === "InAttendance" ? ' em atendimento' : ' esperando') + '</span></div>' +
-        '<p class="subject">' + esc(t.subject) + '</p>' +
-        '<div class="meta">' + (t.chatGroup ? esc(t.chatGroup) + ' · ' : '') + esc(t.category || "Sem categoria") + ' · ' + esc(t.status || "") + (t.urgency ? ' · urgência ' + esc(t.urgency) : "") + '</div>';
-      html += '<div class="insight">';
-      if (!c) html += '<p class="loading">Ticket sem cliente vinculado, não há histórico.</p>';
-      else if (t._error) html += '<p class="warn">Não foi possível carregar o histórico (' + esc(t._error) + ').</p>';
-      else if (!a) html += '<p class="loading">Carregando histórico do mês…</p>';
-      else {
-        html += '<p><b>' + a.total + '</b> ' + (a.total === 1 ? "ticket anterior" : "tickets anteriores") + ' neste mês.</p>';
-        if (a.sameCat > 0) html += '<p class="warn">Já abriu ' + a.sameCat + ' ' + (a.sameCat === 1 ? "ticket" : "tickets") + ' na categoria “' + esc(t.category) + '” este mês.</p>';
-        if (a.similar.length) html += '<p class="warn">Assunto parecido em ' + a.similar.length + ' ' + (a.similar.length === 1 ? "ticket" : "tickets") + ', por exemplo “' + esc(a.similar[0].subject) + '” (#' + esc(a.similar[0].id) + ').</p>';
-        if (a.topCats.length) html += '<div class="chips">' + a.topCats.map(function(x){ return '<span class="chip">' + esc(x.name) + ' · ' + x.n + '</span>'; }).join("") + '</div>';
-        if (!a.total) html += '<p class="meta">Primeiro contato do mês.</p>';
-      }
-      return html + '</div></div>';
-    }
-    function section(title, arr, emptyMsg){
-      return '<h2 class="sec">' + title + ' (' + arr.length + ')</h2>' +
-        (arr.length ? arr.map(cardHtml).join("") : '<div class="empty">' + emptyMsg + '</div>');
-    }
-    list.innerHTML = section("Aguardando atendimento", waiting, "Nenhum chat aguardando.") +
-      section("Em atendimento", active, "Nenhum chat em atendimento.");
-  }
-
-  // ---------- ciclo ----------
-  var busy = false;
-  function refresh(){
-    if (busy || !cfg.token || demo) return;
-    busy = true; setStatus("Atualizando…");
-    fetchQueue().then(function(tickets){
-      var prev = {}; queue.forEach(function(t){ prev[t.id] = t; });
-      var fresh = [];
-      tickets.forEach(function(t){
-        if (prev[t.id] && prev[t.id]._analysis) { t._analysis = prev[t.id]._analysis; }
-        if (seen && !seen[t.id] && t.baseStatus !== "InAttendance") { newIds[t.id] = 1; fresh.push(t); }
-      });
-      queue = tickets;
-      seen = seen || {};
-      tickets.forEach(function(t){ seen[t.id] = 1; });
-      try { localStorage.setItem(LS + "_seen", JSON.stringify(Object.keys(seen).slice(-500))); } catch(e){}
-      render();
-      setStatus("Atualizado às " + new Date().toLocaleTimeString("pt-BR") + (lastInfo ? " · " + lastInfo : ""));
-      if (fresh.length) notify(fresh);
-      return enrich();
-    }).catch(function(e){
-      setStatus("Falha ao consultar o Movidesk (" + e.message + "). Verifique o token; se o navegador bloqueou a chamada (CORS), será preciso usar um proxy.", true);
-    }).then(function(){ busy = false; });
-  }
-
-  function enrich(){
-    var chain = Promise.resolve();
-    queue.forEach(function(t){
-      var c = clientOf(t);
-      if (!c || t._analysis) return;
-      chain = chain.then(function(){
-        return fetchHistory(c.id).then(function(h){ t._analysis = analyze(t, h); delete t._error; })
-          .catch(function(e){ t._error = e.message; })
-          .then(render);
-      });
-    });
-    return chain;
-  }
-
-  function notify(fresh){
-    var names = fresh.map(function(t){ var c = clientOf(t); return c ? c.name : "Cliente"; });
-    if (soundOn) beep();
-    document.title = "(" + fresh.length + ") Novo na fila";
-    setTimeout(function(){ document.title = "Fila de atendimento"; }, 15000);
-    try {
-      if ("Notification" in window && Notification.permission === "granted")
-        new Notification("Novo na fila", { body: names.join(", ") });
-    } catch(e){}
-  }
-
-  function start(){
-    if (timer) clearInterval(timer);
-    if (!cfg.token) { setStatus("Informe o token para começar", true); return; }
-    seen = seen || null;
-    refresh();
-    timer = setInterval(refresh, (cfg.interval || 2) * 60000);
-  }
-  setInterval(function(){ if (queue.length) render(); }, 30000); // atualiza o tempo de espera
-
-  // ---------- diagnóstico: mostra como o Movidesk devolve os tickets recentes ----------
-  $("btnDiag").onclick = function(){
-    if (!cfg.token) { setStatus("Informe o token primeiro", true); return; }
-    demo = false; setStatus("Consultando diagnóstico…");
-    var since = new Date(Date.now() - 24 * 3600000).toISOString().slice(0, 19) + ".00z";
-    api("/tickets", {
-      "$select": "id,subject,status,baseStatus,origin,chatGroup,createdDate",
-      "$filter": "createdDate ge " + since,
-      "$orderby": "createdDate desc",
-      "$top": "40"
-    }).then(function(all){
-      var rows = all.map(function(t){
-        return "<tr><td>" + esc(t.id) + "</td><td>" + esc(t.subject) + "</td><td>" + esc(t.status) + "</td><td>" + esc(t.baseStatus) +
-          "</td><td>" + esc(t.origin) + "</td><td>" + esc(t.chatGroup) + "</td><td>" + esc(t.createdDate) + "</td></tr>";
-      }).join("");
-      $("list").innerHTML = '<h2 class="sec">Diagnóstico: tickets das últimas 24 h (' + all.length + ')</h2>' +
-        '<div style="overflow-x:auto"><table class="diag"><tr><th>ID</th><th>Assunto</th><th>Status</th><th>Base</th><th>Origin</th><th>Grupo de chat</th><th>Criado</th></tr>' + rows + '</table></div>';
-      setStatus("Diagnóstico carregado");
-    }).catch(function(e){ setStatus("Falha no diagnóstico (" + e.message + ")", true); });
-  };
-
-  // ---------- busca direta por número de ticket (teste do chat em andamento) ----------
-  $("btnTicket").onclick = function(){
-    if (!cfg.token) { setStatus("Informe o token primeiro", true); return; }
-    var n = (window.prompt("Número do ticket do chat em andamento (ex.: 7166):") || "").trim();
-    if (!/^\d+$/.test(n)) return;
-    demo = false; setStatus("Buscando o ticket #" + n + "…");
-    api("/tickets", {
-      "$select": "id,subject,status,baseStatus,origin,chatGroup,createdDate,lastUpdate",
-      "$filter": "id eq '" + n + "'",
-      "$top": "1"
-    }).then(function(arr){
-      var t = Array.isArray(arr) ? arr[0] : arr;
-      if (!t) {
-        $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ': a API respondeu, mas não devolveu esse ticket</h2><p class="meta">A consulta funcionou e voltou vazia. Isso indica que a API não enxerga esse ticket (por exemplo, enquanto o chat está em andamento).</p>';
-        setStatus("Ticket #" + n + ": a API não devolveu");
-        return;
-      }
-      $("list").innerHTML = '<h2 class="sec">Ticket #' + esc(n) + ' encontrado pela API</h2><pre style="white-space:pre-wrap">' + esc(JSON.stringify(t, null, 2)) + '</pre>';
-      setStatus("Ticket #" + n + " encontrado");
-    }).catch(function(e){
-      $("list").innerHTML = '<h2 class="sec">Erro ao consultar o ticket #' + esc(n) + ' (' + esc(e.message) + ')</h2><p class="meta">Isso é um erro de conexão ou de permissão, não prova que o ticket não existe.</p>';
-      setStatus("Erro na consulta (" + e.message + ")", true);
-    });
-  };
-
-
-  // ---------- consulta de cliente a partir da conversa colada ----------
-  $("btnLookup").onclick = function(){
-    var open = $("lookup").hidden;
-    $("lookup").hidden = !open; $("list").hidden = open;
-    $("btnLookup").textContent = open ? "Voltar à fila" : "Consultar cliente";
-  };
-  function extractCandidates(text){
-    var out = [], seenV = {};
-    function add(t, v){ if (!seenV[v]) { seenV[v] = 1; out.push({ type: t, v: v }); } }
-    (text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).forEach(function(e){ add("email", e); });
-    (text.match(/#\d{4,}/g) || []).forEach(function(n){ add("ticket", n.slice(1)); });
-    var re = /\b([A-ZÀ-Ý][a-zà-ÿ]{2,}(?:\s+(?:d[aeo]s?\s+)?[A-ZÀ-Ý][a-zà-ÿ]{2,}){1,3})\b/g, m;
-    var bad = /^(Bom Dia|Boa Tarde|Boa Noite|Suporte|Obrigad|Tudo Bem)/i;
-    while ((m = re.exec(text))) if (!bad.test(m[1])) add("name", m[1]);
-    return out.slice(0, 8);
+  function ai(path, body){
+    return fetch(WORKER_URL.replace(/\/$/, "") + path, { method: "POST", headers: { "content-type": "application/json", "x-movidesk-token": token }, body: JSON.stringify(body) })
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error(j.error || ("IA HTTP " + r.status)); return j; }); });
   }
   function findPersons(q){
     var s = q.replace(/'/g, "''");
-    var variants = q.indexOf("@") > 0 ? ["emails/any(e: e/email eq '" + s + "')"]
-      : ["businessName eq '" + s + "'", "startswith(businessName,'" + s + "')", "contains(businessName,'" + s + "')"];
+    var v = q.indexOf("@") > 0 ? ["emails/any(e: e/email eq '" + s + "')"] : ["businessName eq '" + s + "'", "startswith(businessName,'" + s + "')", "contains(businessName,'" + s + "')"];
     var i = 0;
     function next(){
-      if (i >= variants.length) return Promise.resolve([]);
-      return api("/persons", { "$select": "id,businessName", "$filter": variants[i++], "$top": "5" })
-        .then(function(r){ return r.length ? r : next(); }).catch(function(){ return next(); });
+      if (i >= v.length) return Promise.resolve([]);
+      return api("/persons", { "$select": "id,businessName", "$filter": v[i++], "$top": "5" }).then(function(r){ return r.length ? r : next(); }).catch(function(){ return next(); });
     }
     return next();
   }
-  function personsByTicket(n){
-    return api("/tickets", { "$select": "id", "$filter": "id eq '" + n + "'", "$expand": "clients", "$top": "1" })
-      .then(function(r){ return ((r[0] && r[0].clients) || []).map(function(c){ return { id: c.id, businessName: c.businessName }; }); });
+  var STOP = ["para","com","que","uma","nao","por","dos","das","sobre","erro","problema","cliente","favor"];
+  function words(s){ return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter(function(w){ return w.length > 3 && STOP.indexOf(w) < 0; }); }
+  function score(t, ex){
+    var w = words((ex.assunto || "") + " " + (ex.categoria || "")), h = words(t.subject + " " + (t.category || ""));
+    return w.filter(function(x){ return h.indexOf(x) >= 0; }).length;
   }
-  function stripHtml(h){ var d = new DOMParser().parseFromString(String(h || ""), "text/html"); return (d.body.textContent || "").replace(/\s+/g, " ").trim(); }
-  function top(map, n){ return Object.keys(map).sort(function(a, b){ return map[b] - map[a]; }).slice(0, n)
-    .map(function(k){ return '<span class="chip">' + esc(k) + ' · ' + map[k] + '</span>'; }).join(""); }
+  function strip(h){ var d = new DOMParser().parseFromString(String(h || ""), "text/html"); return (d.body.textContent || "").replace(/\s+/g, " ").trim(); }
 
-  function runLookup(q){
-    q = (q || "").trim(); if (!q) return;
-    $("lkQuery").value = q;
-    var out = $("lkOut");
-    out.innerHTML = '<p class="loading">Procurando o cliente “' + esc(q) + '”… (a API limita as consultas, pode levar alguns segundos)</p>';
-    var p = /^#?\d{4,}$/.test(q) ? personsByTicket(q.replace("#", "")) : findPersons(q);
-    p.then(function(list){
-      if (!list.length) { out.innerHTML = '<p class="warn">Não encontrei cliente para “' + esc(q) + '”. Tente o nome exato como aparece no Movidesk, o e-mail ou o número do ticket.</p>'; return; }
-      if (list.length > 1) {
-        out.innerHTML = '<p>Mais de um cliente encontrado. Qual deles?</p><div class="chips" id="lkPick"></div>';
-        list.forEach(function(c){
-          var b = document.createElement("button"); b.className = "chip"; b.textContent = c.businessName;
-          b.onclick = function(){ analyzeClient(c); }; $("lkPick").appendChild(b);
-        });
-        return;
-      }
-      analyzeClient(list[0]);
-    }).catch(function(e){ out.innerHTML = '<p class="warn">Erro na consulta (' + esc(e.message) + ').</p>'; });
-  }
-
-  function analyzeClient(c){
-    var out = $("lkOut");
-    out.innerHTML = '<p class="loading">Carregando tickets de ' + esc(c.businessName) + '…</p>';
-    var since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 19) + ".00z";
-    var base = {
-      "$select": "id,subject,category,status,baseStatus,origin,createdDate,resolvedIn,serviceFirstLevel,ownerTeam",
-      "$filter": "clients/any(c: c/id eq '" + String(c.id).replace(/'/g, "''") + "') and createdDate ge " + since,
-      "$orderby": "createdDate desc", "$top": "100"
-    };
-    var withOwner = {}; Object.keys(base).forEach(function(k){ withOwner[k] = base[k]; }); withOwner["$expand"] = "owner";
-    api("/tickets", withOwner).catch(function(){ return api("/tickets", base); }).then(function(ts){
-      var d0 = new Date(); d0.setHours(0, 0, 0, 0);
-      var day = d0.getTime(), week = Date.now() - 7 * 864e5, mo = new Date(d0.getFullYear(), d0.getMonth(), 1).getTime();
-      var n = { day: 0, week: 0, mo: 0 }, cats = {}, svcs = {}, ags = {}, durs = [];
-      ts.forEach(function(t){
-        var ms = utc(t.createdDate).getTime();
-        if (ms >= day) n.day++; if (ms >= week) n.week++; if (ms >= mo) n.mo++;
-        var k = t.category || "Sem categoria"; cats[k] = (cats[k] || 0) + 1;
-        if (t.serviceFirstLevel) svcs[t.serviceFirstLevel] = (svcs[t.serviceFirstLevel] || 0) + 1;
-        var a = t.owner && t.owner.businessName; if (a) ags[a] = (ags[a] || 0) + 1;
-        if (t.resolvedIn) durs.push((utc(t.resolvedIn) - utc(t.createdDate)) / 60000);
+  // ---- fluxo principal ----
+  $("go").onclick = function(){
+    if (!WORKER_URL) { setStatus("Configure o WORKER_URL primeiro", true); return; }
+    var text = $("txt").value.trim();
+    if (!img && !text) { setStatus("Cole um print ou o texto do chat", true); return; }
+    var out = $("out"), ex, tickets = [], retornos = [];
+    function step(m){ out.innerHTML = '<p class="loading">' + esc(m) + '</p>'; setStatus(m); }
+    $("go").disabled = true;
+    step("Lendo o print e a conversa…");
+    ai("/extract", { image: img, text: text }).then(function(r){
+      ex = r;
+      var nome = $("cli").value.trim() || r.cliente;
+      if (!nome) return [];
+      step("Procurando “" + nome + "” no Movidesk…");
+      return findPersons(nome);
+    }).then(function(ps){
+      if (!ps.length) return [];
+      ex._clienteMovidesk = ps[0].businessName;
+      step("Buscando os tickets de " + ps[0].businessName + " dos últimos 30 dias…");
+      var since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 19) + ".00z";
+      return api("/tickets", {
+        "$select": "id,subject,category,status,baseStatus,createdDate,resolvedIn,serviceFirstLevel",
+        "$filter": "clients/any(c: c/id eq '" + String(ps[0].id).replace(/'/g, "''") + "') and createdDate ge " + since,
+        "$orderby": "createdDate desc", "$top": "100"
       });
-      var avg = durs.length ? fmtWait(Math.round(durs.reduce(function(x, y){ return x + y; }, 0) / durs.length)) : "–";
-      var html = '<div class="card"><div class="client">' + esc(c.businessName) + '</div><div class="counts">' +
-        [[n.day, "hoje"], [n.week, "últimos 7 dias"], [n.mo, "neste mês"], [ts.length, "últimos 90 dias"], [avg, "tempo médio até resolver"]]
-          .map(function(x){ return '<div><b>' + esc(x[0]) + '</b><span>' + x[1] + '</span></div>'; }).join("") + '</div>' +
-        '<div class="meta">Categorias</div><div class="chips">' + (top(cats, 6) || "–") + '</div>' +
-        '<div class="meta" style="margin-top:8px">Serviços</div><div class="chips">' + (top(svcs, 6) || "–") + '</div>' +
-        '<div class="meta" style="margin-top:8px">Analistas que atenderam</div><div class="chips">' + (top(ags, 6) || "–") + '</div></div>';
-      html += '<h2 class="sec">Últimos tickets</h2><div class="card">' + (ts.slice(0, 10).map(function(t){
-        var dur = t.resolvedIn ? fmtWait(Math.round((utc(t.resolvedIn) - utc(t.createdDate)) / 60000)) : "em aberto";
-        return '<div class="row"><b>#' + esc(t.id) + '</b> · ' + utc(t.createdDate).toLocaleDateString("pt-BR") + ' · ' + esc(t.subject) +
-          '<div class="meta">' + esc(t.category || "Sem categoria") + (t.serviceFirstLevel ? ' · ' + esc(t.serviceFirstLevel) : '') +
-          ' · ' + esc(t.status) + ' · ' + dur + (t.owner && t.owner.businessName ? ' · ' + esc(t.owner.businessName) : '') + '</div>' +
-          (t.baseStatus === "Resolved" || t.baseStatus === "Closed" ? '<div class="sol loading" id="sol-' + esc(t.id) + '">Aguardando o retorno final…</div>' : '') + '</div>';
-      }).join("") || '<p class="meta">Nenhum ticket nos últimos 90 dias.</p>') + '</div>';
-      out.innerHTML = html;
+    }).then(function(ts){
+      tickets = ts || [];
+      var res = tickets.filter(function(t){ return t.baseStatus === "Resolved" || t.baseStatus === "Closed"; })
+        .sort(function(a, b){ return score(b, ex) - score(a, ex); }).slice(0, 3);
       var chain = Promise.resolve();
-      ts.filter(function(t){ return t.baseStatus === "Resolved" || t.baseStatus === "Closed"; }).slice(0, 3).forEach(function(t){
+      res.forEach(function(t){
         chain = chain.then(function(){
+          step("Lendo como o ticket #" + t.id + " foi resolvido…");
           return api("/tickets", { "$select": "id", "$filter": "id eq '" + t.id + "'", "$expand": "actions", "$top": "1" }).then(function(r){
-            var acts = ((r[0] && r[0].actions) || []).filter(function(a){ return Number(a.type) === 2; });
-            var last = acts[acts.length - 1], el = document.getElementById("sol-" + t.id); if (!el) return;
-            el.className = "sol";
-            el.textContent = last ? "Último retorno ao cliente: " + stripHtml(last.description).slice(0, 400) : "Sem retorno público registrado.";
-          }).catch(function(){ var el = document.getElementById("sol-" + t.id); if (el) el.textContent = "Não foi possível ler o retorno desse ticket."; });
+            var acts = ((r[0] && r[0].actions) || []).filter(function(a){ return Number(a.type) === 2; }), last = acts[acts.length - 1];
+            if (last) retornos.push({ id: t.id, retorno: strip(last.description).slice(0, 600) });
+          }).catch(function(){});
         });
       });
-      ts.slice(3, 10).forEach(function(t){ var el = document.getElementById("sol-" + t.id); if (el) el.remove(); });
-    }).catch(function(e){ out.innerHTML = '<p class="warn">Erro ao buscar os tickets (' + esc(e.message) + ').</p>'; });
-  }
+      return chain;
+    }).then(function(){
+      step("Analisando e buscando na Ajuda Sankhya…");
+      var slim = tickets.slice(0, 40).map(function(t){ return { id: t.id, data: String(t.createdDate).slice(0, 10), assunto: t.subject, categoria: t.category, servico: t.serviceFirstLevel, status: t.status }; });
+      return ai("/suggest", { extracao: ex, tickets: slim, retornos: retornos });
+    }).then(function(r){ render(ex, tickets, r); setStatus("Análise concluída"); })
+      .catch(function(e){ out.innerHTML = '<p class="warn">Não consegui concluir: ' + esc(e.message) + '</p>'; setStatus("Erro", true); })
+      .then(function(){ $("go").disabled = false; });
+  };
 
-  $("lkGo").onclick = function(){
-    if (!cfg.token) { setStatus("Informe o token primeiro", true); return; }
-    var text = $("lkText").value, cands = extractCandidates(text), q = $("lkQuery").value.trim();
-    var chips = $("lkChips"); chips.innerHTML = "";
-    cands.forEach(function(c){
-      var b = document.createElement("button"); b.className = "chip"; b.textContent = (c.type === "ticket" ? "#" : "") + c.v;
-      b.onclick = function(){ runLookup(c.v); }; chips.appendChild(b);
+  function render(ex, tickets, r){
+    var h = '<div class="card"><h2>' + esc(ex._clienteMovidesk || ex.cliente || "Cliente não identificado") + '</h2>' +
+      '<div class="meta">' + esc(ex.categoria || "") + (ex.assunto ? ' · ' + esc(ex.assunto) : '') + '</div>' +
+      '<p>' + esc(ex.resumo || "") + '</p>' + (ex._sem_print ? '<p class="meta">A IA não conseguiu ler o print; a análise usou só o texto colado.</p>' : '') +
+      (ex._clienteMovidesk ? '<div class="meta">' + tickets.length + ' ticket(s) nos últimos 30 dias</div>' : '<p class="warn">Não achei esse cliente no Movidesk, então a análise não tem o histórico dele. Informe o nome no campo “Nome do cliente” e tente de novo.</p>') + '</div>';
+    h += '<div class="card"><h2>Já teve algo parecido nos últimos 30 dias? <span class="' + (r.parecido_30d ? 'yes">Sim' : 'no">Não') + '</span></h2>';
+    (r.parecidos || []).forEach(function(p){ h += '<div class="meta"><b>#' + esc(p.id) + '</b> · ' + esc(p.motivo) + '</div>'; });
+    if (r.historico) h += '<p>' + esc(r.historico) + '</p>';
+    h += '</div><div class="card"><h2>Como resolver</h2>';
+    (r.sugestoes || []).forEach(function(s){
+      h += '<div><b>' + esc(s.titulo) + '</b><span class="tag">' + esc(s.fonte || "") + '</span><ol>' + (s.passos || []).map(function(p){ return '<li>' + esc(p) + '</li>'; }).join("") + '</ol></div>';
     });
-    if (!q && cands.length) {
-      var pick = cands.filter(function(c){ return c.type === "email"; })[0] || cands.filter(function(c){ return c.type === "ticket"; })[0] || cands[0];
-      q = pick.v;
-    }
-    if (!q) { $("lkOut").innerHTML = '<p class="warn">Cole a conversa ou digite o nome do cliente.</p>'; return; }
-    runLookup(q);
-  };
-
-  // ---------- demonstração (dados fictícios, sem token) ----------
-  var demo = false;
-  function ago(min){ return new Date(Date.now() - min * 60000).toISOString(); }
-  $("btnDemo").onclick = function(){
-    if (demo) {
-      demo = false; queue = []; newIds = {};
-      $("btnDemo").textContent = "Ver demonstração";
-      $("sCount").textContent = "–"; $("sWait").textContent = "–";
-      $("list").innerHTML = '<div class="empty">Informe o token e clique em “Salvar e iniciar”.</div>';
-      setStatus("Aguardando configuração");
-      if (cfg.token) start();
-      return;
-    }
-    demo = true;
-    if (timer) clearInterval(timer);
-    $("cfg").open = false;
-    $("btnDemo").textContent = "Sair da demonstração";
-    newIds = { 4821: 1 };
-    queue = [
-      { id: 4793, subject: "Nota fiscal não está sendo emitida", category: "Fiscal", status: "Novo", urgency: "Alta", createdDate: ago(23),
-        clients: [{ id: "c1", businessName: "Padaria Pão Quente Ltda" }],
-        _analysis: { total: 6, sameCat: 4, topCats: [{name:"Fiscal",n:4},{name:"Financeiro",n:2}],
-          similar: [{ id: 4702, subject: "Erro ao emitir nota fiscal de serviço" }, { id: 4655, subject: "Nota fiscal rejeitada pela prefeitura" }] } },
-      { id: 4810, subject: "Como cadastro um novo usuário?", category: "Dúvida", status: "Novo", urgency: "Normal", createdDate: ago(9),
-        clients: [{ id: "c2", businessName: "Clínica Vida Plena" }],
-        _analysis: { total: 1, sameCat: 0, topCats: [{name:"Acesso",n:1}], similar: [] } },
-      { id: 4815, subject: "Relatório de vendas com valores diferentes", category: "Relatórios", status: "Novo", urgency: "Normal", createdDate: ago(4),
-        clients: [{ id: "c3", businessName: "Mercado Bom Preço" }],
-        _analysis: { total: 3, sameCat: 2, topCats: [{name:"Relatórios",n:2},{name:"Cadastro",n:1}],
-          similar: [{ id: 4760, subject: "Valores do relatório de vendas não batem" }] } },
-      { id: 4821, subject: "Sistema fora do ar, não consigo entrar", category: "Incidente", status: "Novo", urgency: "Urgente", createdDate: ago(0),
-        clients: [{ id: "c4", businessName: "Auto Peças Irmãos Souza" }],
-        _analysis: { total: 0, sameCat: 0, topCats: [], similar: [] } }
-    ];
-    render();
-    setStatus("Modo demonstração: dados fictícios");
-    if (soundOn) beep();
-  };
-
-  if (cfg.token) { $("cfg").open = false; start(); }
+    if (!(r.sugestoes || []).length) h += '<p class="meta">Sem base suficiente para sugerir uma solução.</p>';
+    var arts = (r.artigos || []).filter(function(a){ return /^https:\/\/ajuda\.sankhya\.com\.br\//.test(a.url || ""); });
+    if (arts.length) h += '<h2>Artigos da Ajuda Sankhya</h2>' + arts.map(function(a){ return '<div><a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.titulo) + '</a></div>'; }).join("");
+    $("out").innerHTML = h + '</div>';
+  }
+  show();
 })();
 </script>
 </body>
